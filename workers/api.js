@@ -342,7 +342,7 @@ const init = async () => {
         server.ext('onPreAuth', (request, h) => {
             // Skip auth for static assets, docs and metrics
             const publicPaths = ['/', '/favicon.ico', '/docs', '/swagger/', '/metrics'];
-            const isPublic = publicPaths.some(p => request.path === p || request.path.startsWith('/static') || request.path.startsWith('/swagger'));
+            const isPublic = publicPaths.some(p => request.path === p || request.path.startsWith('/assets') || request.path.startsWith('/static') || request.path.startsWith('/swagger'));
             if (isPublic) return h.continue;
 
             const authHeader = request.headers['authorization'] || '';
@@ -373,7 +373,7 @@ const init = async () => {
         method: 'GET',
         path: '/',
         handler: {
-            file: pathlib.join(__dirname, '..', 'static', 'index.html')
+            file: pathlib.join(__dirname, '..', 'assets', 'index.html')
         }
     });
 
@@ -381,16 +381,40 @@ const init = async () => {
         method: 'GET',
         path: '/favicon.ico',
         handler: {
-            file: pathlib.join(__dirname, '..', 'static', 'favicon.ico')
+            file: pathlib.join(__dirname, '..', 'assets', 'favicon.ico')
         }
     });
 
     server.route({
         method: 'GET',
-        path: '/static/{file*}',
+        path: '/assets/{file*}',
         handler: {
             directory: {
-                path: pathlib.join(__dirname, '..', 'static')
+                path: pathlib.join(__dirname, '..', 'assets'),
+                listing: false,
+                index: false
+            }
+        },
+        options: {
+            // Disable X-Accel-Redirect so Plesk/Nginx does not intercept
+            // and serve files directly — Node.js handles all static files
+            response: {
+                modify: true,
+                options: {
+                    stripUnknown: false
+                }
+            },
+            ext: {
+                onPreResponse: {
+                    method(request, h) {
+                        if (request.response && request.response.header) {
+                            // Remove X-Accel-Redirect to prevent Nginx from
+                            // bypassing Node.js for static file serving
+                            request.response.header('X-Accel-Redirect', '', { override: true });
+                        }
+                        return h.continue;
+                    }
+                }
             }
         }
     });
