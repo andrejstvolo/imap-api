@@ -375,7 +375,7 @@ const init = async () => {
         handler: {
             // Served by Node.js — Apache/Passenger passes '/' to Node.js
             // since there is no index.html in the Document Root (static/)
-            file: pathlib.join(__dirname, '..', 'static', 'index.html')
+            file: pathlib.join(__dirname, '..', 'static', 'index.html.passenger')
         }
     });
 
