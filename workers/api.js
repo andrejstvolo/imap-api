@@ -335,6 +335,28 @@ const init = async () => {
         }
     ]);
 
+    // ── API Key Authentication ──────────────────────────────────────────────
+    // Set API_KEY environment variable to enable auth. If not set, auth is disabled.
+    const API_KEY = process.env.API_KEY || config.api.key || null;
+    if (API_KEY) {
+        server.ext('onPreAuth', (request, h) => {
+            // Skip auth for static assets, docs and metrics
+            const publicPaths = ['/', '/favicon.ico', '/docs', '/swagger/', '/metrics'];
+            const isPublic = publicPaths.some(p => request.path === p || request.path.startsWith('/static') || request.path.startsWith('/swagger'));
+            if (isPublic) return h.continue;
+
+            const authHeader = request.headers['authorization'] || '';
+            const queryKey = request.query && request.query.apiKey;
+            const providedKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : queryKey;
+
+            if (providedKey !== API_KEY) {
+                throw Boom.unauthorized('Invalid or missing API key. Provide via Authorization: Bearer <key> header or ?apiKey= query param.');
+            }
+            return h.continue;
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     server.events.on('response', request => {
         if (!/^\/v1\//.test(request.route.path)) {
             // only log API calls
@@ -1482,6 +1504,96 @@ const init = async () => {
             }
         }
     });
+
+    // ── Save Draft Endpoint ──────────────────────────────────────────────────
+    server.route({
+        method: 'POST',
+        path: '/v1/account/{account}/draft',
+
+        async handler(request) {
+            let accountObject = new Account({ redis, account: request.params.account, call });
+            try {
+                return await accountObject.saveDraft(request.payload);
+            } catch (err) {
+                if (Boom.isBoom(err)) {
+                    throw err;
+                }
+                throw Boom.boomify(err, { statusCode: err.statusCode || 500, decorate: { code: err.code } });
+            }
+        },
+        options: {
+            description: 'Save message as draft',
+            notes: 'Saves a composed message to the IMAP Drafts folder of the specified account. The draft will appear in Outlook, Thunderbird, or any IMAP client.',
+            tags: ['api', 'draft'],
+            validate: {
+                options: { stripUnknown: false, abortEarly: false, convert: true },
+                failAction,
+                params: Joi.object({
+                    account: Joi.string().max(256).required().example('videosportas').description('Account ID')
+                }),
+                payload: Joi.object({
+                    from: Joi.object({
+                        name: Joi.string().max(256).example('Info Videosportas'),
+                        address: Joi.string().email().required().example('info@videosportas.lt')
+                    }).required(),
+                    to: Joi.array().items(Joi.object({ name: Joi.string(), address: Joi.string().email().required() })),
+                    cc: Joi.array().items(Joi.object({ name: Joi.string(), address: Joi.string().email() })),
+                    subject: Joi.string().max(1024).example('Re: Your inquiry'),
+                    text: Joi.string().max(5 * 1024 * 1024).example('Hello,\n\nThank you for reaching out.'),
+                    html: Joi.string().max(5 * 1024 * 1024).example('<p>Hello,</p><p>Thank you for reaching out.</p>')
+                }).label('DraftMessage')
+            }
+        }
+    });
+
+    // ── Unified All-Accounts Inbox ───────────────────────────────────────────
+    server.route({
+        method: 'GET',
+        path: '/v1/inbox',
+
+        async handler(request) {
+            try {
+                let accounts = await redis.smembers('ia:accounts');
+                let results = [];
+                for (let accountId of accounts) {
+                    try {
+                        let accountObject = new Account({ redis, account: accountId, call });
+                        let messages = await accountObject.listMessages({
+                            path: 'INBOX',
+                            page: 0,
+                            pageSize: request.query.pageSize || 10
+                        });
+                        if (messages && messages.messages) {
+                            messages.messages.forEach(msg => {
+                                results.push(Object.assign({ account: accountId }, msg));
+                            });
+                        }
+                    } catch (e) {
+                        // skip accounts that are not connected yet
+                    }
+                }
+                // Sort by date descending
+                results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+                return { total: results.length, messages: results };
+            } catch (err) {
+                if (Boom.isBoom(err)) throw err;
+                throw Boom.boomify(err, { statusCode: 500 });
+            }
+        },
+        options: {
+            description: 'Unified inbox — all accounts',
+            notes: 'Returns the latest emails from all registered accounts combined, sorted by date descending.',
+            tags: ['api', 'inbox'],
+            validate: {
+                options: { stripUnknown: true, abortEarly: false, convert: true },
+                failAction,
+                query: Joi.object({
+                    pageSize: Joi.number().integer().min(1).max(100).default(10).description('Number of messages per account')
+                })
+            }
+        }
+    });
+    // ────────────────────────────────────────────────────────────────────────
 
     server.route({
         method: 'GET',

@@ -3,9 +3,9 @@
     "private": true,
     "version": "1.2.2",
     "description": "Email Sync Engine",
-    "main": "server.js",
+    "main": "app.js",
     "scripts": {
-        "start": "node server.js",
+        "start": "node app.js",
         "test": "grunt",
         "licenses": "npm-license-crawler --production --csv ./licenses.csv"
     },

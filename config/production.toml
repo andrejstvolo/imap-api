@@ -1,0 +1,9 @@
+[api]
+port = 3000
+host = "0.0.0.0"   # listen on all interfaces so Plesk proxy can reach it
+
+[dbs]
+redis = "redis://127.0.0.1:6379/8"
+
+[log]
+level = "info"
