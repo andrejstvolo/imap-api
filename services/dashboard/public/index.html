@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Automation Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #0f172a; color: #e2e8f0; }
+        .sidebar { background: #1e293b; min-height: 100vh; width: 260px; position: fixed; }
+        .main-content { margin-left: 260px; padding: 24px; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .card-header { background: transparent; border-bottom: 1px solid #334155; }
+        .stat-card { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 12px; padding: 20px; }
+        .stat-card.warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .stat-card.success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .stat-card.danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .draft-item { background: #334155; border-radius: 8px; padding: 16px; margin-bottom: 12px; transition: all 0.2s; }
+        .draft-item:hover { background: #475569; }
+        .btn-approve { background: #10b981; border: none; }
+        .btn-approve:hover { background: #059669; }
+        .btn-reject { background: #ef4444; border: none; }
+        .btn-reject:hover { background: #dc2626; }
+        .activity-item { border-left: 3px solid #3b82f6; padding-left: 16px; margin-bottom: 16px; }
+        .activity-item.success { border-color: #10b981; }
+        .activity-item.warning { border-color: #f59e0b; }
+        .activity-item.error { border-color: #ef4444; }
+        .nav-link { color: #94a3b8; padding: 12px 20px; border-radius: 8px; margin: 4px 12px; }
+        .nav-link:hover, .nav-link.active { background: #334155; color: #fff; }
+        .task-card { background: #334155; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .progress { background: #475569; height: 8px; border-radius: 4px; }
+        .business-card { background: #334155; border-radius: 8px; padding: 16px; }
+        .badge { font-weight: 500; }
+        .connection-status { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .connection-status.online { background: #10b981; }
+        .connection-status.offline { background: #ef4444; }
+        .connection-status.connecting { background: #f59e0b; }
+        #editor { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; min-height: 200px; }
+        .modal-content { background: #1e293b; color: #e2e8f0; }
+        .modal-header { border-bottom: 1px solid #334155; }
+        .modal-footer { border-top: 1px solid #334155; }
+        .form-control, .form-select { background: #334155; border: 1px solid #475569; color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #334155; border-color: #3b82f6; color: #e2e8f0; box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25); }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="p-4">
+            <h4 class="mb-0"><i class="bi bi-envelope-check me-2"></i>Email Hub</h4>
+            <small class="text-muted">Multi-Business Automation</small>
+        </div>
+        <nav class="nav flex-column">
+            <a class="nav-link active" href="#overview" data-section="overview">
+                <i class="bi bi-grid me-2"></i>Overview
+            </a>
+            <a class="nav-link" href="#drafts" data-section="drafts">
+                <i class="bi bi-pencil-square me-2"></i>Draft Approvals
+                <span class="badge bg-danger ms-2" id="draftCount">0</span>
+            </a>
+            <a class="nav-link" href="#tasks" data-section="tasks">
+                <i class="bi bi-cpu me-2"></i>AI Tasks
+                <span class="badge bg-primary ms-2" id="taskCount">0</span>
+            </a>
+            <a class="nav-link" href="#businesses" data-section="businesses">
+                <i class="bi bi-buildings me-2"></i>Businesses
+            </a>
+            <a class="nav-link" href="#activity" data-section="activity">
+                <i class="bi bi-activity me-2"></i>Activity Feed
+            </a>
+            <a class="nav-link" href="#settings" data-section="settings">
+                <i class="bi bi-gear me-2"></i>Settings
+            </a>
+        </nav>
+        <div class="mt-auto p-4">
+            <div class="d-flex align-items-center">
+                <div class="connection-status online me-2" id="wsStatus"></div>
+                <small class="text-muted" id="wsStatusText">Connected</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Overview Section -->
+        <div id="overview-section" class="section">
+            <h2 class="mb-4">Dashboard Overview</h2>
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <h6 class="text-white-50">Pending Drafts</h6>
+                        <h2 class="mb-0" id="statPending">0</h2>
+                        <small>Need approval</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card success">
+                        <h6 class="text-white-50">Active Tasks</h6>
+                        <h2 class="mb-0" id="statTasks">0</h2>
+                        <small>AI agents working</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card warning">
+                        <h6 class="text-white-50">Connected Accounts</h6>
+                        <h2 class="mb-0" id="statAccounts">0/11</h2>
+                        <small>Business emails</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card" id="statCardEmails">
+                        <h6 class="text-white-50">Today's Emails</h6>
+                        <h2 class="mb-0" id="statEmails">0</h2>
+                        <small>Processed</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Recent Activity</h5>
+                            <button class="btn btn-sm btn-outline-light" onclick="refreshActivity()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                        <div class="card-body" id="recentActivity">
+                            <div class="text-center text-muted py-4">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Quick Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-primary w-100 mb-2" onclick="showSection('drafts')">
+                                <i class="bi bi-check2-all me-2"></i>Review Pending Drafts
+                            </button>
+                            <button class="btn btn-outline-light w-100 mb-2" onclick="refreshAllConnections()">
+                                <i class="bi bi-arrow-repeat me-2"></i>Refresh All Connections
+                            </button>
+                            <button class="btn btn-outline-light w-100" onclick="showSection('settings')">
+                                <i class="bi bi-sliders me-2"></i>Configure Autopilot
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drafts Section -->
+        <div id="drafts-section" class="section d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Draft Approvals</h2>
+                <div class="btn-group">
+                    <button class="btn btn-outline-light active" data-filter="all">All</button>
+                    <button class="btn btn-outline-light" data-filter="pending">Pending</button>
+                    <button class="btn btn-outline-light" data-filter="approved">Approved</button>
+                </div>
+            </div>
+            <div id="draftsList">
+                <div class="text-center text-muted py-5">Loading drafts...</div>
+            </div>
+        </div>
+
+        <!-- Tasks Section -->
+        <div id="tasks-section" class="section d-none">
+            <h2 class="mb-4">AI Task Monitor</h2>
+            <div class="row g-4" id="tasksList">
+                <div class="text-center text-muted py-5">Loading tasks...</div>
+            </div>
+        </div>
+
+        <!-- Businesses Section -->
+        <div id="businesses-section" class="section d-none">
+            <h2 class="mb-4">Multi-Business Overview</h2>
+            <div class="row g-4" id="businessesList">
+                <div class="text-center text-muted py-5">Loading businesses...</div>
+            </div>
+        </div>
+
+        <!-- Activity Section -->
+        <div id="activity-section" class="section d-none">
+            <h2 class="mb-4">Activity Feed</h2>
+            <div class="card">
+                <div class="card-body" id="fullActivity">
+                    <div class="text-center text-muted py-5">Loading activity...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settings-section" class="section d-none">
+            <h2 class="mb-4">Settings</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Autopilot Configuration</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Global Autopilot Mode</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autopilotToggle">
+                            <label class="form-check-label" for="autopilotToggle">Enable autopilot for all accounts</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confidence Threshold</label>
+                        <input type="range" class="form-range" min="0" max="100" value="85" id="confidenceThreshold">
+                        <small class="text-muted">Current: <span id="confidenceValue">85</span>%</small>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Draft Preview Modal -->
+    <div class="modal fade" id="draftModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Review Draft Reply</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Original Email</label>
+                        <div class="p-3 bg-dark rounded" id="originalEmail"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">AI-Generated Reply</label>
+                        <textarea class="form-control" id="draftContent" rows="8"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">Generated by: <span id="draftAgent"></span></small>
+                        </div>
+                        <div>
+                            <small class="text-muted">Confidence: <span id="draftConfidence"></span>%</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" onclick="rejectCurrentDraft()">Discard</button>
+                    <button type="button" class="btn btn-success" onclick="approveAndSendDraft()">Approve & Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // State
+        let ws = null;
+        let currentDraft = null;
+        let drafts = [];
+        let tasks = [];
+        let accounts = [];
+        let activities = [];
+        let currentSection = 'overview';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            setupNavigation();
+            setupEventListeners();
+        });
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                updateConnectionStatus(true);
+                ws.send(JSON.stringify({ action: 'subscribe', channel: 'all' }));
+            };
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleMessage(message);
+            };
+            
+            ws.onclose = () => {
+                updateConnectionStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+            };
+        }
+
+        function handleMessage(message) {
+            switch (message.type) {
+                case 'init':
+                    drafts = message.data.drafts || [];
+                    accounts = message.data.accounts || [];
+                    activities = message.data.activities || [];
+                    updateUI();
+                    break;
+                    
+                case 'newDraft':
+                    drafts.unshift(message.data);
+                    updateDraftsUI();
+                    showNotification('New draft awaiting approval', 'info');
+                    break;
+                    
+                case 'draftStatusChanged':
+                    drafts = drafts.filter(d => d.id !== message.data.draftId);
+                    updateDraftsUI();
+                    break;
+                    
+                case 'newActivity':
+                    activities.unshift(message.data);
+                    updateActivityUI();
+                    break;
+                    
+                case 'taskUpdate':
+                    updateTask(message.data);
+                    break;
+            }
+        }
+
+        function updateUI() {
+            updateStats();
+            updateDraftsUI();
+            updateActivityUI();
+            updateTasksUI();
+            updateBusinessesUI();
+        }
+
+        function updateStats() {
+            document.getElementById('statPending').textContent = drafts.filter(d => d.status === 'pending').length;
+            document.getElementById('statTasks').textContent = tasks.length;
+            document.getElementById('statAccounts').textContent = `${accounts.length}/11`;
+            document.getElementById('draftCount').textContent = drafts.filter(d => d.status === 'pending').length;
+            document.getElementById('taskCount').textContent = tasks.length;
+        }
+
+        function updateDraftsUI() {
+            const container = document.getElementById('draftsList');
+            const pendingDrafts = drafts.filter(d => d.status === 'pending');
+            
+            if (pendingDrafts.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-check-circle" style="font-size: 48px;"></i>
+                        <p class="mt-3">No pending drafts. All caught up!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = pendingDrafts.map(draft => `
+                <div class="draft-item" onclick="openDraft('${draft.id}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${draft.subject || 'No Subject'}</h6>
+                            <p class="mb-1 text-muted small">From: ${draft.from}</p>
+                            <p class="mb-0 text-muted small">Account: ${draft.account}</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-primary">${draft.agentType}</span>
+                            <p class="mb-0 mt-1 text-muted small">${timeAgo(draft.createdAt)}</p>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">${draft.preview || 'No preview available'}</small>
+                    </div>
+                </div>
+            `).join('');
+            
+            updateStats();
+        }
+
+        function updateActivityUI() {
+            const recent = activities.slice(0, 10);
+            const container = document.getElementById('recentActivity');
+            
+            container.innerHTML = recent.map(activity => `
+                <div class="activity-item ${activity.type}">
+                    <div class="d-flex justify-content-between">
+                        <small class="text-white">${activity.description || activity.type}</small>
+                        <small class="text-muted">${timeAgo(activity.timestamp)}</small>
+                    </div>
+                    ${activity.details ? `<small class="text-muted">${activity.details}</small>` : ''}
+                </div>
+            `).join('') || '<div class="text-center text-muted py-4">No recent activity</div>';
+            
+            // Full activity feed
+            const fullContainer = document.getElementById('fullActivity');
+            fullContainer.innerHTML = activities.map(activity => `
+                <div class="activity-item ${activity.type} mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-white">${activity.description || activity.type}</span>
+                        <small class="text-muted">${new Date(activity.timestamp).toLocaleString()}</small>
+                    </div>
+                    ${activity.details ? `<small class="text-muted">${activity.details}</small>` : ''}
+                </div>
+            `).join('') || '<div class="text-center text-muted py-4">No activity recorded</div>';
+        }
+
+        function updateTasksUI() {
+            const container = document.getElementById('tasksList');
+            
+            if (tasks.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center text-muted py-5">
+                        <i class="bi bi-cpu" style="font-size: 48px;"></i>
+                        <p class="mt-3">No active AI tasks</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = tasks.map(task => `
+                <div class="col-md-6">
+                    <div class="task-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0">${task.name}</h6>
+                            <span class="badge bg-${task.status === 'running' ? 'success' : task.status === 'pending' ? 'warning' : 'secondary'}">${task.status}</span>
+                        </div>
+                        <p class="text-muted small mb-2">${task.description || ''}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">${task.agent}</small>
+                            <small class="text-muted">${task.progress || 0}%</small>
+                        </div>
+                        <div class="progress mt-2">
+                            <div class="progress-bar" style="width: ${task.progress || 0}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateBusinessesUI() {
+            const container = document.getElementById('businessesList');
+            
+            // Mock business data - would come from API
+            const businesses = [
+                { id: 'business-01', name: 'Business One - Primary', email: 'contact@business1.com', status: 'connected', unread: 5 },
+                { id: 'business-02', name: 'Business Two - Sales', email: 'sales@business2.com', status: 'connected', unread: 12 },
+                { id: 'business-03', name: 'Business Three - Support', email: 'support@business3.com', status: 'connected', unread: 8 },
+                { id: 'business-04', name: 'Business Four - Marketing', email: 'marketing@business4.com', status: 'error', unread: 0 },
+                { id: 'business-05', name: 'Business Five - Operations', email: 'ops@business5.com', status: 'connected', unread: 3 },
+            ];
+            
+            container.innerHTML = businesses.map(b => `
+                <div class="col-md-4">
+                    <div class="business-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0">${b.name}</h6>
+                            <div class="connection-status ${b.status}"></div>
+                        </div>
+                        <p class="text-muted small mb-2">${b.email}</p>
+                        <div class="d-flex justify-content-between">
+                            <span class="badge bg-primary">${b.unread} unread</span>
+                            <button class="btn btn-sm btn-outline-light" onclick="viewBusiness('${b.id}')">View</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTask(taskData) {
+            const index = tasks.findIndex(t => t.id === taskData.id);
+            if (index >= 0) {
+                tasks[index] = { ...tasks[index], ...taskData };
+            } else {
+                tasks.push(taskData);
+            }
+            updateTasksUI();
+            updateStats();
+        }
+
+        function openDraft(draftId) {
+            currentDraft = drafts.find(d => d.id === draftId);
+            if (!currentDraft) return;
+            
+            document.getElementById('originalEmail').innerHTML = `
+                <strong>From:</strong> ${currentDraft.from}<br>
+                <strong>Subject:</strong> ${currentDraft.subject}<br>
+                <strong>Date:</strong> ${new Date(currentDraft.originalDate).toLocaleString()}<br>
+                <hr class="border-secondary">
+                ${currentDraft.originalBody || 'Original email content...'}
+            `;
+            document.getElementById('draftContent').value = currentDraft.content || '';
+            document.getElementById('draftAgent').textContent = currentDraft.agentType || 'AI';
+            document.getElementById('draftConfidence').textContent = currentDraft.confidence || 'N/A';
+            
+            const modal = new bootstrap.Modal(document.getElementById('draftModal'));
+            modal.show();
+        }
+
+        function approveAndSendDraft() {
+            if (!currentDraft) return;
+            
+            const updatedContent = document.getElementById('draftContent').value;
+            ws.send(JSON.stringify({
+                action: 'sendDraft',
+                draftId: currentDraft.id,
+                content: updatedContent
+            }));
+            
+            bootstrap.Modal.getInstance(document.getElementById('draftModal')).hide();
+            showNotification('Draft approved and sent', 'success');
+        }
+
+        function rejectCurrentDraft() {
+            if (!currentDraft) return;
+            
+            ws.send(JSON.stringify({
+                action: 'rejectDraft',
+                draftId: currentDraft.id
+            }));
+            
+            bootstrap.Modal.getInstance(document.getElementById('draftModal')).hide();
+            showNotification('Draft discarded', 'info');
+        }
+
+        function setupNavigation() {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = link.dataset.section;
+                    showSection(section);
+                    
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                });
+            });
+        }
+
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.add('d-none'));
+            document.getElementById(`${section}-section`).classList.remove('d-none');
+            currentSection = section;
+        }
+
+        function setupEventListeners() {
+            document.getElementById('confidenceThreshold')?.addEventListener('input', (e) => {
+                document.getElementById('confidenceValue').textContent = e.target.value;
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('wsStatus');
+            const text = document.getElementById('wsStatusText');
+            
+            if (connected) {
+                status.className = 'connection-status online me-2';
+                text.textContent = 'Connected';
+            } else {
+                status.className = 'connection-status offline me-2';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            // Could integrate with toast notifications
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+            if (seconds < 60) return 'just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            return `${Math.floor(hours / 24)}d ago`;
+        }
+
+        function refreshActivity() {
+            ws.send(JSON.stringify({ action: 'refreshActivity' }));
+        }
+
+        function refreshAllConnections() {
+            ws.send(JSON.stringify({ action: 'refreshAllConnections' }));
+            showNotification('Refreshing all connections...', 'info');
+        }
+
+        function saveSettings() {
+            const autopilot = document.getElementById('autopilotToggle').checked;
+            const confidence = document.getElementById('confidenceThreshold').value;
+            
+            ws.send(JSON.stringify({
+                action: 'saveSettings',
+                settings: { autopilot, confidence }
+            }));
+            
+            showNotification('Settings saved', 'success');
+        }
+
+        function viewBusiness(businessId) {
+            console.log('View business:', businessId);
+        }
+    </</script>
+</body>
+</html>
