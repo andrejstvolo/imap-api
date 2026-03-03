@@ -1,0 +1,27 @@
+# Bull Board UI Dockerfile
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache ca-certificates
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy Bull Board UI code
+COPY services/bull-board ./services/bull-board
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=3003
+
+# Expose port
+EXPOSE 3003
+
+# Run the application
+CMD ["node", "services/bull-board/server.js"]

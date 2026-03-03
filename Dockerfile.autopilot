@@ -1,0 +1,33 @@
+# Autopilot Worker Dockerfile
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    wget \
+    curl \
+    tzdata
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy application code
+COPY services/autopilot ./services/autopilot
+COPY lib ./lib
+COPY utils ./utils
+COPY config ./config
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Set environment
+ENV NODE_ENV=production
+
+# Run the application
+CMD ["node", "services/autopilot/worker.js"]

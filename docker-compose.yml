@@ -1,0 +1,289 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Redis - Queue Management & Caching
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: email-automation-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - email-automation-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # PostgreSQL - Approval Queue Persistence
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: email-automation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-emailautomation}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-email_automation}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - email-automation-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-emailautomation} -d ${DB_NAME:-email_automation}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Main IMAP API Server
+  # ============================================
+  imap-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: email-automation-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+      - DATABASE_URL=postgresql://${DB_USER:-emailautomation}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-email_automation}
+      - API_KEY=${API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - ACCOUNTS_CONFIG_PATH=/app/config/accounts.json
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    ports:
+      - "3000:3000"
+    networks:
+      - email-automation-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # AI Agent Bridge Service
+  # ============================================
+  agent-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent-bridge
+    container_name: email-automation-agent-bridge
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+      - API_KEY=${API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENCLAW_AGENT_URL=${OPENCLAW_AGENT_URL}
+      - MANUS_AGENT_URL=${MANUS_AGENT_URL}
+      - CLAUDE_CODE_AGENT_URL=${CLAUDE_CODE_AGENT_URL}
+      - IMAP_API_URL=http://imap-api:3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3001:3001"
+    networks:
+      - email-automation-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      imap-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Draft Approval Queue Service
+  # ============================================
+  approval-queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.approval-queue
+    container_name: email-automation-approval-queue
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+      - DATABASE_URL=postgresql://${DB_USER:-emailautomation}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-email_automation}
+      - API_KEY=${API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - IMAP_API_URL=http://imap-api:3000
+      - AGENT_BRIDGE_URL=http://agent-bridge:3001
+      - NOTIFICATION_EMAIL=${ALERT_EMAIL}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3002:3002"
+    networks:
+      - email-automation-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      imap-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Autopilot Worker
+  # ============================================
+  autopilot:
+    build:
+      context: .
+      dockerfile: Dockerfile.autopilot
+    container_name: email-automation-autopilot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+      - API_KEY=${API_KEY}
+      - IMAP_API_URL=http://imap-api:3000
+      - AGENT_BRIDGE_URL=http://agent-bridge:3001
+      - APPROVAL_QUEUE_URL=http://approval-queue:3002
+      - AUTOPILOT_ENABLED=${AUTOPILOT_ENABLED:-false}
+      - AUTOPILOT_CONFIDENCE_THRESHOLD=${AUTOPILOT_CONFIDENCE_THRESHOLD:-0.85}
+      - AUTOPILOT_RATE_LIMIT=${AUTOPILOT_RATE_LIMIT:-20}
+      - AUTOPILOT_ESCALATION_EMAIL=${AUTOPILOT_ESCALATION_EMAIL}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - email-automation-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      imap-api:
+        condition: service_healthy
+      agent-bridge:
+        condition: service_healthy
+      approval-queue:
+        condition: service_healthy
+
+  # ============================================
+  # SnappyMail Webmail UI (Optional)
+  # ============================================
+  snappymail:
+    image: ghcr.io/the-djmaze/snappymail:latest
+    container_name: email-automation-snappymail
+    restart: unless-stopped
+    environment:
+      - SNAPPYMAIL_ADMIN_PASSWORD=${SNAPPYMAIL_ADMIN_PASSWORD:-admin}
+    volumes:
+      - snappymail-data:/var/lib/snappymail
+      - ./config/snappymail:/var/lib/snappymail/_data_/_default_:ro
+    ports:
+      - "8888:8888"
+    networks:
+      - email-automation-network
+    depends_on:
+      - imap-api
+
+  # ============================================
+  # Bull Board - Queue Monitoring UI
+  # ============================================
+  bull-board:
+    build:
+      context: .
+      dockerfile: Dockerfile.bull-board
+    container_name: email-automation-bull-board
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+      - USERNAME=${BULL_BOARD_USER:-admin}
+      - PASSWORD=${BULL_BOARD_PASSWORD:-admin}
+    ports:
+      - "3003:3003"
+    networks:
+      - email-automation-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================
+  # Prometheus - Metrics Collection
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: email-automation-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - email-automation-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  # ============================================
+  # Grafana - Metrics Dashboard
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: email-automation-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3004:3000"
+    networks:
+      - email-automation-network
+    depends_on:
+      - prometheus
+
+networks:
+  email-automation-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  snappymail-data:
+  prometheus-data:
+  grafana-data:

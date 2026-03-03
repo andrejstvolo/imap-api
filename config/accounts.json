@@ -1,0 +1,338 @@
+{
+  "accounts": [
+    {
+      "id": "business-01",
+      "name": "Business One - Primary",
+      "email": "contact@business1.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "contact@business1.com",
+          "pass": "${BUSINESS1_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "contact@business1.com",
+          "pass": "${BUSINESS1_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.85,
+        "allowedCategories": ["support", "inquiry"],
+        "blockedCategories": ["legal", "billing-dispute"],
+        "escalationRules": {
+          "keywords": ["urgent", "lawsuit", "complaint", "refund"],
+          "senderDomains": ["court.gov", "lawfirm.com"]
+        }
+      },
+      "aiAgents": ["openclaw", "manus"],
+      "priority": 1
+    },
+    {
+      "id": "business-02",
+      "name": "Business Two - Sales",
+      "email": "sales@business2.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "sales@business2.com",
+          "pass": "${BUSINESS2_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "sales@business2.com",
+          "pass": "${BUSINESS2_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": true,
+        "confidenceThreshold": 0.8,
+        "allowedCategories": ["sales-inquiry", "demo-request"],
+        "blockedCategories": ["support", "complaint"]
+      },
+      "aiAgents": ["openclaw", "claude-code"],
+      "priority": 2
+    },
+    {
+      "id": "business-03",
+      "name": "Business Three - Support",
+      "email": "support@business3.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "support@business3.com",
+          "pass": "${BUSINESS3_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "support@business3.com",
+          "pass": "${BUSINESS3_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": true,
+        "confidenceThreshold": 0.75,
+        "allowedCategories": ["support", "faq"],
+        "blockedCategories": ["escalation", "refund-request"]
+      },
+      "aiAgents": ["manus"],
+      "priority": 1
+    },
+    {
+      "id": "business-04",
+      "name": "Business Four - Marketing",
+      "email": "marketing@business4.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "marketing@business4.com",
+          "pass": "${BUSINESS4_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "marketing@business4.com",
+          "pass": "${BUSINESS4_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.9
+      },
+      "aiAgents": ["openclaw"],
+      "priority": 3
+    },
+    {
+      "id": "business-05",
+      "name": "Business Five - Operations",
+      "email": "ops@business5.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "ops@business5.com",
+          "pass": "${BUSINESS5_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "ops@business5.com",
+          "pass": "${BUSINESS5_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.95
+      },
+      "aiAgents": ["claude-code"],
+      "priority": 1
+    },
+    {
+      "id": "business-06",
+      "name": "Business Six - HR",
+      "email": "hr@business6.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "hr@business6.com",
+          "pass": "${BUSINESS6_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "hr@business6.com",
+          "pass": "${BUSINESS6_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.95,
+        "blockedCategories": ["all"]
+      },
+      "aiAgents": [],
+      "priority": 1
+    },
+    {
+      "id": "business-07",
+      "name": "Business Seven - Finance",
+      "email": "finance@business7.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "finance@business7.com",
+          "pass": "${BUSINESS7_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "finance@business7.com",
+          "pass": "${BUSINESS7_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.99,
+        "blockedCategories": ["all"]
+      },
+      "aiAgents": [],
+      "priority": 1
+    },
+    {
+      "id": "business-08",
+      "name": "Business Eight - Legal",
+      "email": "legal@business8.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "legal@business8.com",
+          "pass": "${BUSINESS8_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "legal@business8.com",
+          "pass": "${BUSINESS8_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 1.0,
+        "blockedCategories": ["all"]
+      },
+      "aiAgents": [],
+      "priority": 1
+    },
+    {
+      "id": "business-09",
+      "name": "Business Nine - Partnerships",
+      "email": "partnerships@business9.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "partnerships@business9.com",
+          "pass": "${BUSINESS9_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "partnerships@business9.com",
+          "pass": "${BUSINESS9_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 0.9
+      },
+      "aiAgents": ["openclaw", "manus", "claude-code"],
+      "priority": 2
+    },
+    {
+      "id": "business-10",
+      "name": "Business Ten - Product",
+      "email": "product@business10.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "product@business10.com",
+          "pass": "${BUSINESS10_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "product@business10.com",
+          "pass": "${BUSINESS10_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": true,
+        "confidenceThreshold": 0.8,
+        "allowedCategories": ["feature-request", "feedback"]
+      },
+      "aiAgents": ["manus", "claude-code"],
+      "priority": 2
+    },
+    {
+      "id": "business-11",
+      "name": "Business Eleven - Executive",
+      "email": "exec@business11.com",
+      "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "secure": true,
+        "auth": {
+          "user": "exec@business11.com",
+          "pass": "${BUSINESS11_IMAP_PASS}"
+        }
+      },
+      "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "exec@business11.com",
+          "pass": "${BUSINESS11_SMTP_PASS}"
+        }
+      },
+      "autopilot": {
+        "enabled": false,
+        "confidenceThreshold": 1.0,
+        "blockedCategories": ["all"]
+      },
+      "aiAgents": [],
+      "priority": 1
+    }
+  ]
+}
